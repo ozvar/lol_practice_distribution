@@ -49,35 +49,36 @@ def dim_reduction_visualizer(dim_reduction, labels=None, labelling='no_groups',
 
     ax.set_xlabel('Dimension 1')
     ax.set_ylabel('Dimension 2')
-#     plt.savefig(
-#         f'{save_path}\\{labelling}.svg',
-#         dpi=dpi,
-#         bbox_inches='tight'
-#     )
-    #plt.show()
-    return ax
-    
+    plt.savefig(
+        f'{save_path}\\{labelling}.svg',
+        dpi=dpi,
+        bbox_inches='tight'
+    )
+    plt.show()
+    return None
 
 
-def curves_visualizer(df, scatter_ax, grouper, targets, rows, columns, figsize=(20, 5),
+def curves_visualizer(df, grouper, targets, rows, columns, figsize=(10, 5),
                       save_path='results\\figures', dpi=300, grouper_rmp=None,
-                      target_rmp=None, cmap='prism', legend=False):
+                      target_rmp=None, cmap='prism', legend=True,
+                      accounts_to_retain=None):
     """
     """
+    if accounts_to_retain is not None:
+        df = df[df['account_id'].isin(accounts_to_retain)]
+
     fig, axs = plt.subplots(
         rows,
-        columns+1,
+        columns,
         figsize=figsize,
-        #sharex=True
     )
     axs = axs.flatten()
-    axs[0] = scatter_ax
     cmapper = matplotlib.cm.get_cmap(cmap)
 
     for index_g, group in enumerate(df[grouper].unique()):
 
-        for index, target in enumerate(targets, 1):
-            
+        for index, target in enumerate(targets):
+
             means = df[df[grouper] == group].groupby(
                 'nth_match')[target].mean().values
             errors = df[df[grouper] == group].groupby(
@@ -109,7 +110,10 @@ def curves_visualizer(df, scatter_ax, grouper, targets, rows, columns, figsize=(
 
     plt.tight_layout()
     if legend:
-        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.legend(
+            # loc='center left',
+            # bbox_to_anchor=(1, 0.5)
+    )
     plt.savefig(
         f'{save_path}\\{grouper}_curves.svg',
         dpi=dpi,
@@ -117,6 +121,87 @@ def curves_visualizer(df, scatter_ax, grouper, targets, rows, columns, figsize=(
     )
 
     plt.show()
+    return None
+
+
+def profiles_visualizer(df, target, dim_reduction, grouper='global',
+                        figsize=(10, 5), mask=-1, save_path='results\\figures',
+                        dpi=300, grouper_rmp={'global': 'Global'},
+                        target_rmp=None, cmap='prism', legend=True):
+    """
+    """
+    fig, axs = plt.subplots(
+        1,
+        2,
+        figsize=figsize,
+    )
+    axs = axs.flatten()
+    cmapper = matplotlib.cm.get_cmap(cmap)
+
+    labels = df.groupby('account_id')[grouper].agg(['unique']).values.tolist()
+    labels = np.array(labels).flatten()
+    index_color_label = 0
+    for unique_label in np.unique(labels):
+
+        label_index = np.argwhere(labels == unique_label).flatten()
+        if unique_label == mask:
+            color = 'whitesmoke'
+        else:
+            color = cmapper(index_color_label)
+            index_color_label += 1
+        axs[0].scatter(
+            dim_reduction[label_index, 0],
+            dim_reduction[label_index, 1],
+            s=0.025,
+            marker='o',
+            color=color,
+            label=f'{grouper_rmp[grouper]} {unique_label}',
+        )
+
+        if unique_label != mask:
+            means = df[df[grouper] == unique_label].groupby(
+                'nth_match')[target].mean().values
+            errors = df[df[grouper] == unique_label].groupby(
+                'nth_match')[target].sem().values
+
+            label = f'{grouper_rmp[grouper]} {unique_label}'
+
+            axs[1].plot(means, label=label, c=color)
+            axs[1].fill_between(
+                [i for i in range(len(means))],
+                [means[i] + (1.96 * errors[i]) for i in range(len(means))],
+                [means[i] - (1.96 * errors[i]) for i in range(len(means))],
+                alpha=0.25,
+                color=color
+            )
+
+            if target_rmp is not None:
+                target_label = target_rmp[target]
+            else:
+                target_label = target
+
+    axs[0].set_xlabel('Dimension 1')
+    axs[0].set_ylabel('Dimension 2')
+
+    axs[1].set_ylabel(target_label)
+    axs[1].set_xlabel('Match')
+    axs[1].set_xlim(0, 99)
+    axs[1].axvline(95, c='r', linestyle='--', alpha=0.5)
+
+    plt.tight_layout()
+    if legend:
+        axs[1].legend(
+            # loc='center left',
+            # bbox_to_anchor=(1, 0.5)
+        )
+    plt.savefig(
+        f'{save_path}\\{grouper}_profile.svg',
+        dpi=dpi,
+        bbox_inches='tight'
+    )
+
+    plt.show()
+    return None
 
 
 def visualize_auto_elbow(n_clusters, inertias, grad_line, optimal_k,
