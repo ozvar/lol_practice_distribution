@@ -64,9 +64,6 @@ def curves_visualizer(df, grouper, targets, rows, columns, figsize=(10, 5),
                       accounts_to_retain=None):
     """
     """
-    if accounts_to_retain is not None:
-        df = df[df['account_id'].isin(accounts_to_retain)]
-
     fig, axs = plt.subplots(
         rows,
         columns,
@@ -78,10 +75,18 @@ def curves_visualizer(df, grouper, targets, rows, columns, figsize=(10, 5),
     for index_g, group in enumerate(df[grouper].unique()):
 
         for index, target in enumerate(targets):
-
-            means = df[df[grouper] == group].groupby(
+            
+            if accounts_to_retain is not None:
+                filtered_df = df[
+                    df['account_id'].isin(accounts_to_retain[target])
+                ]
+            else:
+                filtered_df = df
+            
+            nth_matches = np.sort(filtered_df['nth_match'].unique())
+            means = filtered_df[filtered_df[grouper] == group].groupby(
                 'nth_match')[target].mean().values
-            errors = df[df[grouper] == group].groupby(
+            errors = filtered_df[filtered_df[grouper] == group].groupby(
                 'nth_match')[target].sem().values
 
             if grouper_rmp is not None:
@@ -89,11 +94,16 @@ def curves_visualizer(df, grouper, targets, rows, columns, figsize=(10, 5),
             else:
                 label = f'{grouper} {group}'
 
-            axs[index].plot(means, label=label, c=cmapper(index_g))
+            axs[index].plot(
+                nth_matches,
+                means, 
+                label=label, 
+                c=cmapper(index_g)
+            )
             axs[index].fill_between(
-                [i for i in range(len(means))],
-                [means[i] + (1.96 * errors[i]) for i in range(len(means))],
-                [means[i] - (1.96 * errors[i]) for i in range(len(means))],
+                [i for i in nth_matches],
+                [means[i] + (1.96 * errors[i]) for i in range(len(nth_matches))],
+                [means[i] - (1.96 * errors[i]) for i in range(len(nth_matches))],
                 alpha=0.25,
                 color=cmapper(index_g)
             )
@@ -105,7 +115,7 @@ def curves_visualizer(df, grouper, targets, rows, columns, figsize=(10, 5),
 
             axs[index].set_ylabel(target_label)
             axs[index].set_xlabel('Match')
-            axs[index].set_xlim(0, 99)
+            axs[index].set_xlim(nth_matches.min(), nth_matches.max())
             axs[index].axvline(95, c='r', linestyle='--', alpha=0.5)
 
     plt.tight_layout()
@@ -137,7 +147,8 @@ def profiles_visualizer(df, target, dim_reduction, grouper='global',
     )
     axs = axs.flatten()
     cmapper = matplotlib.cm.get_cmap(cmap)
-
+    
+    nth_matches = np.sort(df['nth_match'].unique())
     labels = df.groupby('account_id')[grouper].agg(['unique']).values.tolist()
     labels = np.array(labels).flatten()
     index_color_label = 0
@@ -155,7 +166,7 @@ def profiles_visualizer(df, target, dim_reduction, grouper='global',
             s=0.025,
             marker='o',
             color=color,
-            label=f'{grouper_rmp[grouper]} {unique_label}',
+            label=f'{grouper_rmp[grouper]} {unique_label+1}',
         )
 
         if unique_label != mask:
@@ -164,13 +175,18 @@ def profiles_visualizer(df, target, dim_reduction, grouper='global',
             errors = df[df[grouper] == unique_label].groupby(
                 'nth_match')[target].sem().values
 
-            label = f'{grouper_rmp[grouper]} {unique_label}'
+            label = f'{grouper_rmp[grouper]} {unique_label+1}'
 
-            axs[1].plot(means, label=label, c=color)
+            axs[1].plot(
+                nth_matches,
+                means, 
+                label=label, 
+                c=color
+            )
             axs[1].fill_between(
-                [i for i in range(len(means))],
-                [means[i] + (1.96 * errors[i]) for i in range(len(means))],
-                [means[i] - (1.96 * errors[i]) for i in range(len(means))],
+                [i for i in nth_matches],
+                [means[i] + (1.96 * errors[i]) for i in range(len(nth_matches))],
+                [means[i] - (1.96 * errors[i]) for i in range(len(nth_matches))],
                 alpha=0.25,
                 color=color
             )
@@ -185,7 +201,7 @@ def profiles_visualizer(df, target, dim_reduction, grouper='global',
 
     axs[1].set_ylabel(target_label)
     axs[1].set_xlabel('Match')
-    axs[1].set_xlim(0, 99)
+    axs[1].set_xlim(nth_matches.min(), nth_matches.max())
     axs[1].axvline(95, c='r', linestyle='--', alpha=0.5)
 
     plt.tight_layout()
